@@ -20,12 +20,7 @@
 
 static long altera_dma_ioctl (struct file *filp, unsigned int cmd, unsigned long arg)
 {
-    printk(KERN_DEBUG ALTERA_DMA_DRIVER_NAME ": "
-	   "altera_dma_ioctl()," "\n");
-    printk(KERN_DEBUG ALTERA_DMA_DRIVER_NAME ": "
-	   "filp(%p), cmd(%i)" "\n", filp, cmd);
     struct altera_pcie_dma_bookkeep *bk_ptr = filp->private_data;
-    printk(KERN_DEBUG ALTERA_DMA_DRIVER_NAME ": " "bk_ptr(%p)" "\n", bk_ptr);
     switch (cmd) {
         case ALTERA_IOCX_START:
             dma_test(bk_ptr, bk_ptr->pci_dev);
