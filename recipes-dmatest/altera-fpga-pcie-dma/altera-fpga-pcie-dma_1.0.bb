@@ -1,7 +1,11 @@
 SUMMARY = "DMA test application"
 DESCRIPTION = "Test the DMA loopback with Intel PCIe HIP"
 # This is specified in the kernel sources
-LICENSE = "BSD/GPL"
+# LICENSE = "BSD-2-Clause|GPL-2.0-only"
+LICENSE = "BSD-2-Clause"
+# LIC_FILES_CHKSUM = "file://COPYING;md5=5a2b62d63490ed55486909997f38bc34"
+LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/BSD-2-Clause;md5=cb641bc04cda31daea161b1bc15da69f"
+
 # INHIBIT_PACKAGE_STRIP = "1"
 TARGET_CC_ARCH += "${LDFLAGS}"
 

@@ -1,6 +1,8 @@
-SUMMARY = "Building Intel/Altera PCIe kernel module and example SW"
+SUMMARY = "Building Intel/Altera PCIe kernel module"
 DESCRIPTION = "${SUMMARY}"
-LICENSE = "GPL/BSD"
+# Kernel source gives LICENSE = "BSD-2-Clause|GPL-2.0-only"
+LICENSE = "BSD-2-Clause"
+LIC_FILES_CHKSUM = "file://COPYING;md5=5a2b62d63490ed55486909997f38bc34"
 
 inherit module
 
