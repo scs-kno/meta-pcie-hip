@@ -1,0 +1,33 @@
+This README file contains information on the contents of the meta-pcie-hip layer.
+
+Please see the corresponding sections below for details.
+
+This layer is built for the Variscite Yocto Linux described in
+https://variwiki.com/index.php?title=Yocto_Build_Release&release=mx8mp-yocto-kirkstone-5.15-2.0.x-v1.0
+or the equivalent for the `mx8mm-yocto-kirkstone`.
+
+
+Patches
+=======
+
+Please submit any patches against the meta-pcie-hip layer to the xxxx mailing list (xxxx@zzzz.org)
+and cc: the maintainer:
+
+Maintainer: XXX YYYYYY <xxx.yyyyyy@zzzzz.com>
+
+Table of Contents
+=================
+
+  I. Adding the meta-pcie-hip layer to your build
+ II. Misc
+
+
+I. Adding the meta-pcie-hip layer to your build
+=================================================
+
+Run 'bitbake-layers add-layer meta-pcie-hip'
+
+II. Misc
+========
+
+--- replace with specific information about the meta-pcie-hip layer ---
