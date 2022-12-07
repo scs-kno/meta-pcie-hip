@@ -181,10 +181,12 @@ int main() {
       read_line(line, BUFFER_LENGTH, stdin);
       num_input = strtol(line, NULL, 10);
       *(int *)buf = num_input;
-      if (num_input < 1 || num_input > 4096) {
+      if (num_input < 1 || num_input > 512) {
         // if (num_input < 1 || num_input > 0x3FFFF){
-        printf("the maximum transfer size of each descriptor is 0x3FFFF DW "
-               "(1MB)\n");
+        // printf("the maximum transfer size of each descriptor is 0x3FFFF DW "
+        //       "(1MB)\n");
+	printf("The maximum transfer size of each descriptor is limited "
+	       "to PAGE_SIZE. This is probably 4KB";
         break;
       } else
         write(f, &cmd, 0);
