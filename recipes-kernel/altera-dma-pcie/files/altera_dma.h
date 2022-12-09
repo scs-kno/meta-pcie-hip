@@ -172,6 +172,10 @@ ssize_t altera_dma_exec_cmd(struct dma_cmd *ucmd,
 static long altera_dma_ioctl(struct file *filp, unsigned int cmd,
 			     unsigned long arg);
 
+static int dma_write_user_init(struct altera_pcie_dma_bookkeep *bk_ptr);
+static int dma_write_user_start(struct altera_pcie_dma_bookkeep *bk_ptr,
+				struct pci_dev *dev);
+
 // lite
 static int set_lite_table_header(struct lite_dma_header *header);
 

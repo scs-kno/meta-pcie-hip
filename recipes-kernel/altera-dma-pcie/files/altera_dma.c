@@ -23,10 +23,22 @@ static long altera_dma_ioctl(struct file *filp, unsigned int cmd,
 	struct altera_pcie_dma_bookkeep *bk_ptr = filp->private_data;
 	switch (cmd) {
 	case ALTERA_IOCX_START:
+		printk("dma_test(..)");
 		dma_test(bk_ptr, bk_ptr->pci_dev);
+		break;
 	case ALTERA_CMD_WAIT_DMA:
+		printk("wait_event_interruptible(..)");
 		wait_event_interruptible(bk_ptr->wait_q,
 					 !atomic_read(&bk_ptr->status));
+		break;
+	case ALTERA_IOCX_WRUSRINIT:
+		printk("dma_write_user_init(..)");
+		dma_write_user_init(bk_ptr);
+		break;
+	case ALTERA_IOCX_WRUSRSTART:
+		printk("dma_write_user_start(..)");
+		dma_write_user_start(bk_ptr, bk_ptr->pci_dev);
+		break;
 	}
 	return -EINVAL;
 }
@@ -403,6 +415,144 @@ static int set_lite_table_header(struct lite_dma_header *header)
 	int i;
 	for (i = 0; i < 128; i++)
 		header->flags[i] = cpu_to_le32(0x0);
+	return 0;
+}
+
+static int dma_write_user_init(struct altera_pcie_dma_bookkeep *bk_ptr)
+{
+	u8 *rp_rd_buffer_virt_addr = bk_ptr->rp_rd_buffer_virt_addr;
+	// dma_addr_t rp_rd_buffer_bus_addr = bk_ptr->rp_rd_buffer_bus_addr;
+	u8 *rp_wr_buffer_virt_addr = bk_ptr->rp_wr_buffer_virt_addr;
+	dma_addr_t rp_wr_buffer_bus_addr = bk_ptr->rp_wr_buffer_bus_addr;
+	int i;
+
+	atomic_set(&bk_ptr->status, 1);
+	bk_ptr->dma_status.pass_read = 0;
+	bk_ptr->dma_status.pass_write = 0;
+	bk_ptr->dma_status.pass_simul = 0;
+	bk_ptr->dma_status.read_desc_start = 0;
+	bk_ptr->dma_status.read_desc_end = 0;
+
+	memset(rp_rd_buffer_virt_addr, 0,
+	       bk_ptr->dma_status.altera_dma_num_dwords * 4);
+	memset(rp_wr_buffer_virt_addr, 0,
+	       bk_ptr->dma_status.altera_dma_num_dwords * 4);
+
+	bk_ptr->dma_status.read_eplast_timeout = 0;
+	bk_ptr->dma_status.write_eplast_timeout = 0;
+
+	set_lite_table_header(
+		(struct lite_dma_header *)bk_ptr->lite_table_wr_cpu_virt_addr);
+	wmb();
+	for (i = 0; i < 128; i++) {
+		set_write_desc(
+			&bk_ptr->lite_table_wr_cpu_virt_addr->descriptors[i],
+			ONCHIP_MEM_BASE, (dma_addr_t)rp_wr_buffer_bus_addr,
+			bk_ptr->dma_status.altera_dma_num_dwords, i);
+	}
+
+	iowrite32((dma_addr_t)bk_ptr->lite_table_wr_bus_addr,
+		  bk_ptr->bar[0] + DESC_CTRLLER_BASE +
+			  ALTERA_LITE_DMA_WR_RC_LOW_SRC_ADDR);
+	iowrite32(((dma_addr_t)bk_ptr->lite_table_wr_bus_addr) >> 32,
+		  bk_ptr->bar[0] + DESC_CTRLLER_BASE +
+			  ALTERA_LITE_DMA_WR_RC_HIGH_SRC_ADDR);
+	return 0;
+}
+
+static int dma_write_user_start(struct altera_pcie_dma_bookkeep *bk_ptr,
+				struct pci_dev *dev)
+{
+	u8 *rp_rd_buffer_virt_addr = bk_ptr->rp_rd_buffer_virt_addr;
+	dma_addr_t rp_rd_buffer_bus_addr = bk_ptr->rp_rd_buffer_bus_addr;
+	u8 *rp_wr_buffer_virt_addr = bk_ptr->rp_wr_buffer_virt_addr;
+	dma_addr_t rp_wr_buffer_bus_addr = bk_ptr->rp_wr_buffer_bus_addr;
+	int i;
+	u32 last_id, write_127;
+	u32 timeout;
+	u32 r_last_id, w_last_id, r_write_127, w_write_127;
+	u32 rand;
+
+	ktime_t tv1;
+	ktime_t tv2;
+	ktime_t diff;
+
+	timeout = TIMEOUT;
+	write_127 = 0;
+	last_id = ioread32((u32 *)(bk_ptr->bar[0] + DESC_CTRLLER_BASE +
+				   ALTERA_LITE_DMA_WR_LAST_PTR));
+
+	memset(rp_wr_buffer_virt_addr, 0,
+	       bk_ptr->dma_status.altera_dma_num_dwords * 4);
+
+	if (last_id == 0xFF) {
+		iowrite32(WR_CTRL_BUF_BASE_LOW,
+			  bk_ptr->bar[0] + DESC_CTRLLER_BASE +
+				  ALTERA_LITE_DMA_WR_CTLR_LOW_DEST_ADDR);
+		iowrite32(WR_CTRL_BUF_BASE_HI,
+			  bk_ptr->bar[0] + DESC_CTRLLER_BASE +
+				  ALTERA_LITE_DMA_WR_CTRL_HIGH_DEST_ADDR);
+	}
+
+	wmb();
+	if (last_id == 0xFF)
+		last_id = 127;
+
+	last_id = last_id + bk_ptr->dma_status.altera_dma_descriptor_num;
+
+	if (last_id > 127) {
+		last_id = last_id - 128;
+		if ((bk_ptr->dma_status.altera_dma_descriptor_num > 1) &&
+		    (last_id != 127))
+			write_127 = 1;
+	}
+
+	tv1 = ktime_get();
+
+	if (write_127) {
+		iowrite32(127, bk_ptr->bar[0] + DESC_CTRLLER_BASE +
+				       ALTERA_LITE_DMA_WR_LAST_PTR);
+	}
+
+	iowrite32(last_id, bk_ptr->bar[0] + DESC_CTRLLER_BASE +
+				   ALTERA_LITE_DMA_WR_LAST_PTR);
+
+	while (1) {
+		if (bk_ptr->lite_table_wr_cpu_virt_addr->header.flags[last_id]) {
+			break;
+		}
+
+		if (timeout == 0) {
+			bk_ptr->dma_status.write_eplast_timeout = 1;
+			printk(KERN_DEBUG "Write DMA times out\n");
+			printk(KERN_DEBUG "DWORD = %08x\n",
+			       bk_ptr->dma_status.altera_dma_num_dwords);
+			printk(KERN_DEBUG "Desc = %08x\n",
+			       bk_ptr->dma_status.altera_dma_descriptor_num);
+			break;
+		}
+
+		timeout--;
+		cpu_relax();
+	}
+
+	tv2 = ktime_get();
+	diff_timeval(&diff, &tv2, &tv1);
+	bk_ptr->dma_status.write_time = diff;
+
+	if (timeout == 0) {
+		bk_ptr->dma_status.pass_write = 0;
+	} else {
+		if (rp_ep_compare(rp_wr_buffer_virt_addr, bk_ptr, 0,
+				  bk_ptr->dma_status.altera_dma_num_dwords)) {
+			bk_ptr->dma_status.pass_write = 0;
+		} else {
+			bk_ptr->dma_status.pass_write = 1;
+		}
+	}
+
+	atomic_set(&bk_ptr->status, 0);
+	wake_up(&bk_ptr->wait_q);
 	return 0;
 }
 
