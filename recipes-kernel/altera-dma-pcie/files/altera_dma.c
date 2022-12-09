@@ -543,6 +543,7 @@ static int dma_write_user_start(struct altera_pcie_dma_bookkeep *bk_ptr,
 	if (timeout == 0) {
 		bk_ptr->dma_status.pass_write = 0;
 	} else {
+	        wmb();
 		if (rp_ep_compare(rp_wr_buffer_virt_addr, bk_ptr, 0,
 				  bk_ptr->dma_status.altera_dma_num_dwords)) {
 			bk_ptr->dma_status.pass_write = 0;
@@ -760,6 +761,7 @@ static int dma_test(struct altera_pcie_dma_bookkeep *bk_ptr,
 		iowrite32(((dma_addr_t)bk_ptr->lite_table_wr_bus_addr) >> 32,
 			  bk_ptr->bar[0] + DESC_CTRLLER_BASE +
 				  ALTERA_LITE_DMA_WR_RC_HIGH_SRC_ADDR);
+
 		if (last_id == 0xFF) {
 			iowrite32(
 				WR_CTRL_BUF_BASE_LOW,

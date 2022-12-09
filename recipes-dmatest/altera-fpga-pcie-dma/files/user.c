@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "altera_dma_cmd.h"
 
@@ -125,6 +126,9 @@ void print_menu(char *buf) {
 }
 
 int main() {
+  struct timespec user_st, user_end;
+  uint64_t runtime_ns;
+
   ssize_t f = open("/dev/altera_dma", O_RDWR);
   if (f == -1) {
     printf("Couldn't open the device.\n");
@@ -136,7 +140,7 @@ int main() {
   struct dma_cmd cmd;
   cmd.usr_buf_size = sizeof(struct dma_status);
   char line[BUFFER_LENGTH];
-  int num_input;
+  int num_input = -1;
   int i, loop_num;
   int j = 1;
 
@@ -145,7 +149,9 @@ int main() {
     cmd.buf = buf;
     write(f, &cmd, 0);
 
-    system("clear");
+    if (num_input != ALTERA_LOOP) {
+      system("clear");
+    }
     print_menu(buf);
     read_line(line, BUFFER_LENGTH, stdin);
     num_input = strtol(line, NULL, 10);
@@ -185,8 +191,8 @@ int main() {
         // if (num_input < 1 || num_input > 0x3FFFF){
         // printf("the maximum transfer size of each descriptor is 0x3FFFF DW "
         //       "(1MB)\n");
-	printf("The maximum transfer size of each descriptor is limited "
-	       "to PAGE_SIZE. This is probably 4KB";
+        printf("The maximum transfer size of each descriptor is limited "
+               "to PAGE_SIZE. This is probably 4KB");
         break;
       } else
         write(f, &cmd, 0);
@@ -214,68 +220,46 @@ int main() {
       write(f, &cmd, 0);
       break;
     case ALTERA_LOOP:
-      printf(
-          "enter loop num (0 for infinite and press ESC to quit the loop): ");
+      printf("enter loop num: ");
       read_line(line, BUFFER_LENGTH, stdin);
       loop_num = strtol(line, NULL, 10);
-      if (loop_num != 0) {
-        for (i = 0; i < loop_num; i++) {
-          ioctl(f, ALTERA_IOCX_START);
-          ioctl(f, ALTERA_IOCX_WAIT);
-          cmd.cmd = ALTERA_CMD_READ_STATUS;
-          cmd.buf = buf;
-          write(f, &cmd, 0);
-          if ((!((struct dma_status *)buf)->pass_read &&
-               ((struct dma_status *)buf)->run_read) ||
-              (!((struct dma_status *)buf)->pass_write &&
-               ((struct dma_status *)buf)->run_write) ||
-              (!((struct dma_status *)buf)->pass_simul &&
-               ((struct dma_status *)buf)->run_simul)) {
-            system("clear");
-            print_menu(buf);
-            printf("DMA data error!\n");
-            printf("Type in dmesg to show more details!\n");
-            return;
-          }
-          system("clear");
-          print_menu(buf);
-          printf("Press ESC to stop\n");
-          //						usleep(1000*250);
-          if (kbhit())
-            break;
-        }
-      } else {
-        do {
-          ioctl(f, ALTERA_IOCX_START);
-          ioctl(f, ALTERA_IOCX_WAIT);
-          cmd.cmd = ALTERA_CMD_READ_STATUS;
-          cmd.buf = buf;
-          write(f, &cmd, 0);
-          if ((!((struct dma_status *)buf)->pass_read &&
-               ((struct dma_status *)buf)->run_read) ||
-              (!((struct dma_status *)buf)->pass_write &&
-               ((struct dma_status *)buf)->run_write) ||
-              (!((struct dma_status *)buf)->pass_simul &&
-               ((struct dma_status *)buf)->run_simul)) {
-            system("clear");
-            print_menu(buf);
-            printf("DMA data error!\n");
-            printf("Type in dmesg to show more details!\n");
-            return;
-          }
-          system("clear");
-          print_menu(buf);
-          printf("Press ESC to stop\n");
-          //						usleep(1000*250);
-          if (kbhit())
-            break;
-        } while (1);
+      if (loop_num <= 0) {
+        break;
       }
+      clock_gettime(CLOCK_MONOTONIC, &user_st);
+
+      ioctl(f, ALTERA_IOCX_WRUSRINIT);
+      ioctl(f, ALTERA_IOCX_WRUSRSTART);
+      for (i = 0; i < loop_num; i++) {
+        ioctl(f, ALTERA_IOCX_WAIT);
+        cmd.cmd = ALTERA_CMD_READ_STATUS;
+        cmd.buf = buf;
+        write(f, &cmd, 0);
+        if (!((struct dma_status *)buf)->pass_write &&
+            ((struct dma_status *)buf)->run_write) {
+          printf("DMA data error!\n");
+          printf("Type in dmesg to show more details!\n");
+          return -1;
+        }
+        // maybe don't call this on last loop??
+        ioctl(f, ALTERA_IOCX_WRUSRSTART);
+        // read the data back!!
+      }
+
+      clock_gettime(CLOCK_MONOTONIC, &user_end);
+      runtime_ns = ((uint64_t)(user_end.tv_sec - user_st.tv_sec)) * 1000000000 +
+                   user_end.tv_nsec - user_st.tv_nsec;
+      printf("Length of transfer      : %d KB\n",
+             ((struct dma_status *)buf)->length_transfer * loop_num);
+      printf("Write Time              : %i ns\n", runtime_ns);
+      printf("Write Throughput        : %ld GB/S\n",
+             ((long double)(((struct dma_status *)buf)->length_transfer *
+                            0.954 * 1000 * loop_num)) /
+                 (long double)runtime_ns);
       break;
     default:
       printf("%d is an invalid command\n", num_input);
     }
-    system("clear");
   } while (num_input != ALTERA_EXIT);
   close(f);
 

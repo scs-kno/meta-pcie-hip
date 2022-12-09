@@ -19,6 +19,8 @@
 #define ALTERA_CMD_WAIT_DMA 11
 #define ALTERA_CMD_ALLOC_RP_BUFFER 12
 #define ALTERA_CMD_RAND 13
+#define ALTERA_CMD_WRITEUSRINIT 80
+#define ALTERA_CMD_WRITEUSRSTART 81
 
 #include <linux/ioctl.h>
 
@@ -27,13 +29,17 @@
 #define ALTERA_IOCX_START _IO(ALTERA_IOC_MAGIC, ALTERA_CMD_START_DMA)
 #define ALTERA_IOCX_ALLOC_RP_BUFFER                                            \
   _IO(ALTERA_IOC_MAGIC, ALTERA_CMD_ALLOC_RP_BUFFER)
+#define ALTERA_IOCX_WRUSRSTART _IO(ALTERA_IOC_MAGIC, ALTERA_CMD_WRITEUSRSTART)
+#define ALTERA_IOCX_WRUSRINIT _IO(ALTERA_IOC_MAGIC, ALTERA_CMD_WRITEUSRINIT)
 
 #ifndef __KERNEL__
+
 #include <sys/ioctl.h>
-#endif
 
 #include <stdint.h>
 #define ktime_t uint64_t
+
+#endif
 
 struct dma_cmd {
   int cmd;
@@ -48,6 +54,8 @@ struct dma_status {
   int length_transfer;
   int altera_dma_num_dwords;
   int altera_dma_descriptor_num;
+  int read_desc_start;
+  int read_desc_end;
   ktime_t write_time;
   ktime_t read_time;
   ktime_t simul_time;
